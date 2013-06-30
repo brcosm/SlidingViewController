@@ -18,6 +18,8 @@
 
 @implementation SlidingViewController
 
+#pragma mark - Initialization
+
 + (instancetype)controllerWithMenuWidth:(CGFloat)width side:(MenuViewSide)side
 {
     return [[self alloc] initWithMenuWidth:width side:side];
@@ -45,10 +47,14 @@
     [super viewDidLoad];
  
     CGRect frame = self.view.frame;
+    CGPoint contentOrigin, menuOrigin;
+    contentOrigin = [self originOffsetForContent];
+    menuOrigin = [self originOffsetForMenu];
     
     self.scrollView.contentSize = [self contentSizeForOrientation:UIInterfaceOrientationPortrait];
+    self.scrollView.contentOffset = contentOrigin;
     
-    self.contentContainerView.frame = CGRectMake(0, 0, frame.size.width, frame.size.height);
+    self.contentContainerView.frame = CGRectMake(contentOrigin.x, contentOrigin.y, frame.size.width, frame.size.height);
     self.contentContainerView.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth;
     
     self.contentTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];
@@ -56,9 +62,78 @@
     [self.contentContainerView addGestureRecognizer:self.contentTap];
     [self.view addSubview:self.contentContainerView];
     
-    self.menuContainerView.frame = CGRectMake(frame.size.width, 0, self.menuWidth, frame.size.height);
-    self.menuContainerView.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleLeftMargin;
+    self.menuContainerView.frame = CGRectMake(menuOrigin.x, menuOrigin.y, self.menuWidth, frame.size.height);
+    self.menuContainerView.autoresizingMask = [self resizingMaskForMenu];
     [self.view addSubview:self.menuContainerView];
+}
+
+#pragma mark - Private helpers
+
+- (CGPoint)originOffsetForContent
+{
+    CGPoint origin;
+    switch (self.menuSide) {
+        case MenuViewSideLeft:
+            origin = CGPointMake(self.menuWidth, 0);
+            break;
+            
+        case MenuViewSideRight:
+            origin = CGPointMake(0, 0);
+            break;
+    }
+    return origin;
+}
+
+- (CGPoint)originOffsetForMenu
+{
+    CGPoint origin;
+    switch (self.menuSide) {
+        case MenuViewSideLeft:
+            origin = CGPointMake(0, 0);
+            break;
+            
+        case MenuViewSideRight:
+            origin = CGPointMake(self.view.frame.size.width, 0);
+            break;
+    }
+    return origin;
+}
+
+- (UIViewAutoresizing)resizingMaskForMenu
+{
+    UIViewAutoresizing mask = UIViewAutoresizingFlexibleHeight;
+    mask |= (self.menuSide == MenuViewSideLeft) ? UIViewAutoresizingFlexibleRightMargin : UIViewAutoresizingFlexibleLeftMargin;
+    return mask;
+}
+
+- (BOOL)isMenuFullyDisplayed
+{
+    BOOL fullyDisplayed;
+    switch (self.menuSide) {
+        case MenuViewSideLeft:
+            fullyDisplayed = self.scrollView.contentOffset.x == 0;
+            break;
+            
+        case MenuViewSideRight:
+            fullyDisplayed = self.scrollView.contentOffset.x == self.menuWidth;
+            break;
+    }
+    return fullyDisplayed;
+}
+
+- (CGAffineTransform)contentTransformForOffset:(CGPoint)offset
+{
+    CGAffineTransform t;
+    switch (self.menuSide) {
+        case MenuViewSideLeft:
+            t = CGAffineTransformTranslate(CGAffineTransformIdentity, offset.x, 0);
+            break;
+            
+        case MenuViewSideRight:
+            t = CGAffineTransformTranslate(CGAffineTransformIdentity, offset.x, 0);
+            break;
+    }
+    return t;
 }
 
 #pragma mark - Getters
@@ -182,13 +257,14 @@
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
     CGPoint offset = scrollView.contentOffset;
-    self.contentTap.enabled = offset.x >= self.menuWidth;
-    self.contentContainerView.transform = CGAffineTransformTranslate(CGAffineTransformIdentity, offset.x, 0);
+    self.contentTap.enabled = [self isMenuFullyDisplayed];
+    self.contentContainerView.transform = [self contentTransformForOffset:offset];
 }
 
 - (void)scrollViewWillEndDragging:(UIScrollView *)scrollView withVelocity:(CGPoint)velocity targetContentOffset:(inout CGPoint *)targetContentOffset
 {
     CGPoint currentTarget = *targetContentOffset;
+    
     if (currentTarget.x > self.menuWidth/2.0f && currentTarget.x < self.menuWidth) *targetContentOffset = CGPointMake(self.menuWidth, 0.0f);
     if (currentTarget.x < self.menuWidth/2.0f && currentTarget.x > 0.0f) *targetContentOffset = CGPointZero;
 }
@@ -210,13 +286,14 @@
 - (void)willRotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration
 {
     self.scrollView.contentSize = [self contentSizeForOrientation:toInterfaceOrientation];
+    self.scrollView.contentOffset = [self originOffsetForContent];
 }
 
 #pragma mark - Gesture recognizer
 
 - (void)handleTap:(UITapGestureRecognizer *)tap
 {
-    [self.scrollView setContentOffset:CGPointZero animated:YES];
+    [self.scrollView setContentOffset:[self originOffsetForContent] animated:YES];
 }
 
 @end
